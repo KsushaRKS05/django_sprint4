@@ -10,19 +10,26 @@
       <li class="list-group-item text-muted">Регистрация: {{ profile.date_joined }}</li>
       <li class="list-group-item text-muted">Роль: {% if profile.is_staff %}Админ{% else %}Пользователь{% endif %}</li>
     </ul>
+    {% if request.user == profile %}
     <ul class="list-group list-group-horizontal justify-content-center">
-      {% if user.is_authenticated and request.user == profile %}
       <a class="btn btn-sm text-muted" href="{% url 'blog:edit_profile' %}">Редактировать профиль</a>
       <a class="btn btn-sm text-muted" href="{% url 'password_change' %}">Изменить пароль</a>
-      {% endif %}
     </ul>
+    {% endif %}
   </small>
   <br>
   <h3 class="mb-5 text-center">Публикации пользователя</h3>
   {% for post in page_obj %}
     <article class="mb-5">
       {% include "includes/post_card.html" %}
+      <small class="text-muted ms-3">Комментариев: ({{ post.comments.count }})</small>
     </article>
   {% endfor %}
   {% include "includes/paginator.html" %}
+  
+  {% if request.user == profile and form %}
+  <div style="display: none;">
+    {{ form }}
+  </div>
+  {% endif %}
 {% endblock %}

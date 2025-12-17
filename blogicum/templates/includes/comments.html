@@ -1,0 +1,50 @@
+{% if user.is_authenticated %}
+  <div class="card my-4">
+    <h5 class="card-header">Добавить комментарий:</h5>
+    <div class="card-body">
+      <form method="post" action="{% url 'blog:add_comment' post.id %}">
+        {% csrf_token %}
+        <div class="form-group mb-2">
+          {{ form.text }}
+        </div>
+        <button type="submit" class="btn btn-primary">Отправить</button>
+      </form>
+    </div>
+  </div>
+{% endif %}
+
+{% if comments %}
+  <div class="card my-4">
+    <h5 class="card-header">Комментарии:</h5>
+    <div class="card-body">
+      {% for comment in comments %}
+        <div class="media mb-4">
+          <div class="media-body">
+            <h5 class="mt-0">
+              <a href="{% url 'blog:profile' comment.author.username %}">
+                {{ comment.author.username }}
+              </a>
+              <small class="text-muted">{{ comment.created_at|date:"d E Y, H:i" }}</small>
+            </h5>
+            <p>{{ comment.text|linebreaksbr }}</p>
+            
+            {% if user == comment.author %}
+              <div class="btn-group btn-group-sm" role="group">
+                <a href="{% url 'blog:edit_comment' post.id comment.id %}" 
+                   class="btn btn-outline-primary">
+                  Редактировать
+                </a>
+                <a href="{% url 'blog:delete_comment' post.id comment.id %}" 
+                   class="btn btn-outline-danger"
+                   onclick="return confirm('Вы уверены, что хотите удалить этот комментарий?');">
+                  Удалить
+                </a>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+        {% if not forloop.last %}<hr>{% endif %}
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}
