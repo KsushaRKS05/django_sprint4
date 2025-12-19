@@ -1,17 +1,16 @@
 # blog/views.py
-# from django.db.models import Count
-# from django.contrib.auth.forms import UserChangeForm
 from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
 from django.core.paginator import Paginator
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login
-from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
+from django.contrib import messages
+from django.conf import settings
+from django.db.models import Count
+from .forms import CustomUserCreationForm, PostForm, CommentForm
+from .forms import UserUpdateForm
 from .models import Post, Category, Comment
-from .forms import PostForm, CommentForm
-from django.contrib.auth import REDIRECT_FIELD_NAME
-from .forms import UserEditForm
 
 
 def index(request):
@@ -21,14 +20,15 @@ def index(request):
         is_published=True,
         category__is_published=True,
         pub_date__lte=timezone.now()
-    ).order_by('-pub_date')
+    ).annotate(comment_count=Count('comments')).order_by('-pub_date')
 
-    paginator = Paginator(post_list, 10)
+    paginator = Paginator(post_list, settings.POSTS_PER_PAGE)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
     context = {
         'page_obj': page_obj,
+        'post_list': page_obj,
     }
     return render(request, 'blog/index.html', context)
 
@@ -48,7 +48,7 @@ def post_detail(request, id):
     if not can_view and not is_author:
         return render(request, 'pages/404.html', status=404)
 
-    comments = post.comments.all()
+    comments = post.comments.all().select_related('author')
 
     if request.method == 'POST' and request.user.is_authenticated:
         form = CommentForm(request.POST)
@@ -84,15 +84,16 @@ def category_posts(request, category_slug):
         category=category,
         is_published=True,
         pub_date__lte=timezone.now()
-    ).order_by('-pub_date')
+    ).annotate(comment_count=Count('comments')).order_by('-pub_date')
 
-    paginator = Paginator(post_list, 10)
+    paginator = Paginator(post_list, settings.POSTS_PER_PAGE)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
     context = {
         'category': category,
         'page_obj': page_obj,
+        'post_list': page_obj,
     }
     return render(request, 'blog/category.html', context)
 
@@ -100,41 +101,47 @@ def category_posts(request, category_slug):
 def profile(request, username):
     user = get_object_or_404(User, username=username)
 
-    if request.user == user:
-        post_list = Post.objects.filter(author=user).order_by('-pub_date')
+    is_owner = request.user == user
+
+    if is_owner:
+        post_list = Post.objects.filter(
+            author=user
+        ).select_related('category', 'location').annotate(
+            comment_count=Count('comments')
+        ).order_by('-pub_date')
     else:
         post_list = Post.objects.filter(
             author=user,
             is_published=True,
             category__is_published=True,
             pub_date__lte=timezone.now()
+        ).select_related('category', 'location').annotate(
+            comment_count=Count('comments')
         ).order_by('-pub_date')
 
-    paginator = Paginator(post_list, 10)
+    paginator = Paginator(post_list, settings.POSTS_PER_PAGE)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
-    from .forms import UserEditForm
-    form = UserEditForm(instance=user) if request.user == user else None
-
     context = {
         'profile': user,
+        'profile_user': user,
         'page_obj': page_obj,
-        'is_owner': request.user == user,
-        'form': form,
+        'posts': page_obj,
+        'is_owner': is_owner,
     }
     return render(request, 'blog/profile.html', context)
 
 
 def register(request):
     if request.method == 'POST':
-        form = UserCreationForm(request.POST)
+        form = CustomUserCreationForm(request.POST)
         if form.is_valid():
             user = form.save()
             login(request, user)
             return redirect('blog:profile', username=user.username)
     else:
-        form = UserCreationForm()
+        form = CustomUserCreationForm()
 
     return render(request, 'registration/registration_form.html',
                   {'form': form})
@@ -143,14 +150,19 @@ def register(request):
 @login_required
 def edit_profile(request):
     if request.method == 'POST':
-        form = UserEditForm(request.POST, instance=request.user)
+        form = UserUpdateForm(request.POST, instance=request.user)
         if form.is_valid():
             form.save()
+            messages.success(request, 'Ваш профиль успешно обновлен!')
             return redirect('blog:profile', username=request.user.username)
     else:
-        form = UserEditForm(instance=request.user)
+        form = UserUpdateForm(instance=request.user)
 
-    return render(request, 'blog/edit_profile.html', {'form': form})
+    context = {
+        'form': form,
+        'profile': request.user,
+    }
+    return render(request, 'blog/user.html', context)
 
 
 @login_required
@@ -160,6 +172,10 @@ def post_create(request):
         if form.is_valid():
             post = form.save(commit=False)
             post.author = request.user
+
+            if post.pub_date > timezone.now():
+                post.is_published = False
+
             post.save()
             return redirect('blog:profile', username=request.user.username)
     else:
@@ -168,7 +184,7 @@ def post_create(request):
     return render(request, 'blog/create.html', {'form': form})
 
 
-@login_required(login_url='login', redirect_field_name=REDIRECT_FIELD_NAME)
+@login_required
 def post_edit(request, id):
     post = get_object_or_404(Post, id=id)
 
@@ -178,7 +194,12 @@ def post_edit(request, id):
     if request.method == 'POST':
         form = PostForm(request.POST, request.FILES, instance=post)
         if form.is_valid():
-            form.save()
+            edited_post = form.save(commit=False)
+            if edited_post.pub_date > timezone.now():
+                edited_post.is_published = False
+            else:
+                edited_post.is_published = True
+            edited_post.save()
             return redirect('blog:post_detail', id=id)
     else:
         form = PostForm(instance=post)
@@ -259,4 +280,10 @@ def delete_comment(request, id, comment_id):
         'comment': comment,
         'post': comment.post,
     }
-    return render(request, 'blog/detail.html', context)
+    return render(request, 'blog/comment.html', context)
+
+
+@login_required
+def edit_profile_redirect(request):
+    return redirect('blog:edit_profile_with_username',
+                    username=request.user.username)

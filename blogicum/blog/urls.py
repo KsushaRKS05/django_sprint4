@@ -9,8 +9,10 @@ urlpatterns = [
     path('posts/<int:id>/', views.post_detail, name='post_detail'),
     path('category/<slug:category_slug>/',
          views.category_posts, name='category'),
-    path('profile/<str:username>/', views.profile, name='profile'),
+
     path('profile/edit/', views.edit_profile, name='edit_profile'),
+    path('profile/<str:username>/', views.profile, name='profile'),
+
     path('auth/registration/', views.register, name='register'),
     path('posts/create/', views.post_create, name='post_create'),
     path('posts/<int:id>/edit/', views.post_edit, name='post_edit'),
