@@ -51,7 +51,6 @@ def index(request):
 
 
 def post_detail(request, id):
-    """Детальная страница поста"""
     post = get_object_or_404(
         Post.objects.select_related('category', 'location', 'author'),
         id=id
