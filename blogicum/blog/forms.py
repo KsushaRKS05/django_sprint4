@@ -8,16 +8,8 @@ User = get_user_model()
 
 class CustomUserCreationForm(UserCreationForm):
     email = forms.EmailField(required=True, label='Email адрес')
-    first_name = forms.CharField(
-        max_length=30,
-        required=False,
-        label='Имя'
-    )
-    last_name = forms.CharField(
-        max_length=30,
-        required=False,
-        label='Фамилия'
-    )
+    first_name = forms.CharField(max_length=30, required=False, label='Имя')
+    last_name = forms.CharField(max_length=30, required=False, label='Фамилия')
 
     class Meta(UserCreationForm.Meta):
         model = User
@@ -42,7 +34,7 @@ class CustomUserCreationForm(UserCreationForm):
 class PostForm(forms.ModelForm):
     class Meta:
         model = Post
-        fields = ['title', 'text', 'pub_date', 'location', 'category', 'image']
+        exclude = ('author', 'created_at')
         widgets = {
             'pub_date': forms.DateTimeInput(
                 attrs={'type': 'datetime-local'},
@@ -95,14 +87,14 @@ class UserUpdateForm(forms.ModelForm):
 
     def clean_username(self):
         username = self.cleaned_data.get('username')
-        if User.objects.filter(username=username).exclude(
-                pk=self.instance.pk).exists():
+        if User.objects.filter(
+                username=username).exclude(pk=self.instance.pk).exists():
             raise forms.ValidationError('Это имя пользователя уже занято.')
         return username
 
     def clean_email(self):
         email = self.cleaned_data.get('email')
-        if User.objects.filter(email=email).exclude(
-                pk=self.instance.pk).exists():
+        if User.objects.filter(
+                email=email).exclude(pk=self.instance.pk).exists():
             raise forms.ValidationError('Этот email уже используется.')
         return email

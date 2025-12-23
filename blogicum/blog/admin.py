@@ -1,13 +1,17 @@
 # blog/admin.py
 from django.contrib import admin
+from django.contrib.auth import get_user_model
 from .models import Category, Location, Post, Comment
+
+User = get_user_model()
 
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ('title', 'is_published', 'created_at')
+    list_display = ('title', 'slug', 'is_published', 'created_at')
     list_filter = ('is_published',)
     search_fields = ('title', 'description')
+    prepopulated_fields = {'slug': ('title',)}
 
 
 @admin.register(Location)
@@ -23,7 +27,7 @@ class PostAdmin(admin.ModelAdmin):
     list_filter = ('is_published', 'category', 'pub_date')
     search_fields = ('title', 'text')
     date_hierarchy = 'pub_date'
-    ordering = ('-pub_date',)
+    raw_id_fields = ('author',)
 
 
 @admin.register(Comment)
